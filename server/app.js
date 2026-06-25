@@ -39,6 +39,12 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 
+// ── Request logging ───────────────────────────────────────────────────────────
+app.use((req, _res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 app.use(globalLimiter);
 
@@ -71,10 +77,20 @@ app.use('/api/webhooks',       express.raw({ type: 'application/json' }), requir
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
+// ── 404 handler ───────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
+});
+
 // ── Global error handler ──────────────────────────────────────────────────────
-app.use((err, _req, res, _next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+app.use((err, req, res, _next) => {
+  const status = err.status || err.statusCode || 500;
+  console.error(`[ERROR] ${req.method} ${req.path} → ${status}: ${err.message}`);
+  if (status === 500) console.error(err.stack);
+  res.status(status).json({
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+  });
 });
 
 module.exports = app;

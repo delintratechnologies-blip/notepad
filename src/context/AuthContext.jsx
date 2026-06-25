@@ -4,25 +4,42 @@ const API = import.meta.env.VITE_API_URL || '/api';
 
 const AuthContext = createContext(null);
 
+async function parseResponse(res) {
+  const text = await res.text();
+  if (!text) throw new Error(`Server error ${res.status} — empty response`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Server returned HTML (e.g. Vercel error page) or plain text
+    if (res.status === 500) throw new Error('Server error — backend may be unreachable');
+    if (res.status === 502 || res.status === 503) throw new Error('Backend is offline — please try again later');
+    if (res.status === 429) throw new Error('Too many attempts — please wait 15 minutes');
+    throw new Error(`Unexpected response (${res.status})`);
+  }
+}
+
 export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null);
   const [token,   setToken]   = useState(() => localStorage.getItem('cr_token'));
   const [loading, setLoading] = useState(true);
 
-  // Attach token to every fetch via Authorization header
   const authFetch = useCallback(
     async (path, opts = {}) => {
-      const res = await fetch(`${API}${path}`, {
-        ...opts,
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...opts.headers,
-        },
-      });
+      let res;
+      try {
+        res = await fetch(`${API}${path}`, {
+          ...opts,
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...opts.headers,
+          },
+        });
+      } catch {
+        throw new Error('Cannot reach server — check your connection');
+      }
 
-      // Auto-refresh if access token expired
       if (res.status === 401) {
         const refreshed = await refreshAccessToken();
         if (refreshed) {
@@ -42,7 +59,6 @@ export function AuthProvider({ children }) {
     [token]
   );
 
-  // Refresh access token using httpOnly refresh cookie
   const refreshAccessToken = async () => {
     try {
       const res = await fetch(`${API}/auth/refresh`, {
@@ -59,7 +75,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Load current user on mount
   useEffect(() => {
     if (!token) { setLoading(false); return; }
     fetch(`${API}/auth/me`, {
@@ -73,14 +88,20 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
-    const res = await fetch(`${API}/auth/login`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Login failed');
+    let res;
+    try {
+      res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      throw new Error('Cannot reach server — is the backend running?');
+    }
+
+    const data = await parseResponse(res);
+    if (!res.ok) throw new Error(data.error || `Login failed (${res.status})`);
     setToken(data.token);
     setUser(data.user);
     localStorage.setItem('cr_token', data.token);
@@ -88,14 +109,20 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (fields) => {
-    const res = await fetch(`${API}/auth/register`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fields),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Registration failed');
+    let res;
+    try {
+      res = await fetch(`${API}/auth/register`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      });
+    } catch {
+      throw new Error('Cannot reach server — is the backend running?');
+    }
+
+    const data = await parseResponse(res);
+    if (!res.ok) throw new Error(data.error || `Registration failed (${res.status})`);
     setToken(data.token);
     setUser(data.user);
     localStorage.setItem('cr_token', data.token);
