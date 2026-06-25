@@ -4,7 +4,6 @@
   "outputDirectory": "dist",
   "functions": {
     "server/vercel.js": {
-      "includeFiles": "server/**",
       "memory": 512,
       "maxDuration": 30
     }
