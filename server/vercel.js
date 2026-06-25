@@ -16,7 +16,10 @@ async function ensureConnected() {
     connected = true;
     return;
   }
-  await mongoose.connect(process.env.MONGODB_URI);
+  await mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 5000,
+  });
   connected = true;
 }
 
@@ -25,9 +28,9 @@ module.exports = async (req, res) => {
     await ensureConnected();
     return getApp()(req, res);
   } catch (err) {
-    console.error('[vercel.js] fatal:', err);
+    console.error('[vercel.js] fatal:', err.message);
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message, stack: err.stack });
+      res.status(500).json({ error: err.message });
     }
   }
 };
