@@ -1,0 +1,54 @@
+name: CI
+
+on: [push, pull_request]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-tests:
+    name: server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      # mongodb-memory-server downloads a MongoDB binary on first run; cache it
+      # so the test job doesn't hit the network (and flake) every time.
+      - name: Cache MongoDB binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: ${{ runner.os }}-mongodb-binaries
+
+      - name: Install
+        working-directory: server
+        run: npm ci
+
+      - name: Test
+        working-directory: server
+        run: npm test
+
+  frontend-build:
+    name: frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
