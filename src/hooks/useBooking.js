@@ -63,7 +63,17 @@ export function useBooking(bookingId) {
     return data.booking;
   };
 
-  return { booking, loading, error, confirm, cancel, complete, review, refetch };
+  const createPaymentIntent = async () => {
+    const res  = await authFetch('/payments/intent', {
+      method: 'POST',
+      body: JSON.stringify({ bookingId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    return data.clientSecret;
+  };
+
+  return { booking, loading, error, confirm, cancel, complete, review, createPaymentIntent, refetch };
 }
 
 /**

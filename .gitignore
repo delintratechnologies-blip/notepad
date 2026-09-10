@@ -40,3 +40,4 @@ coverage/
 .eslintcache
 .vercel
 .env*
+!.env.example

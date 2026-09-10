@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Elements } from '@stripe/react-stripe-js';
 import { useAuth } from '../context/AuthContext';
 import { useBooking } from '../hooks/useBooking';
+import { stripePromise, stripeConfigured } from '../lib/stripe';
 import BookingWorkspace from '../components/BookingWorkspace';
+import PaymentForm from '../components/PaymentForm';
 
 const STATUS_COLOR = {
   pending:   { bg: 'var(--color-background-warning)', color: 'var(--color-text-warning)' },
@@ -15,7 +18,7 @@ export default function BookingDetail() {
   const { id }       = useParams();
   const { user }     = useAuth();
   const navigate     = useNavigate();
-  const { booking, loading, error, confirm, cancel, complete, review } = useBooking(id);
+  const { booking, loading, error, confirm, cancel, complete, review, createPaymentIntent, refetch } = useBooking(id);
 
   const [confirmLoading,  setConfirmLoading]  = useState(false);
   const [cancelLoading,   setCancelLoading]   = useState(false);
@@ -196,6 +199,35 @@ export default function BookingDetail() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <ParticipantCard user={booking.host}  label="Host" />
           <ParticipantCard user={booking.guest} label="Guest" />
+
+          {/* Payment due — guest collects card once the host confirms */}
+          {isGuest
+            && booking.status === 'confirmed'
+            && booking.amountCents > 0
+            && booking.paymentStatus === 'unpaid' && (
+            <div style={card}>
+              <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px', color: 'var(--color-text-secondary)', marginBottom: 4 }}>Payment due</div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                ${((booking.amountCents || 0) / 100).toFixed(2)} {booking.currency?.toUpperCase()}
+              </div>
+              {stripeConfigured ? (
+                <Elements stripe={stripePromise}>
+                  <PaymentForm
+                    amountLabel={`$${((booking.amountCents || 0) / 100).toFixed(2)}`}
+                    createPaymentIntent={createPaymentIntent}
+                    onPaid={refetch}
+                  />
+                </Elements>
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--color-text-danger)' }}>
+                  Payments are not configured (VITE_STRIPE_PUBLISHABLE_KEY missing).
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 10, lineHeight: 1.5 }}>
+                Your card is authorized now and only charged after the session is completed.
+              </div>
+            </div>
+          )}
 
           {/* Payment status */}
           {booking.paymentStatus !== 'unpaid' && (

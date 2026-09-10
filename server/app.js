@@ -1,3 +1,6 @@
+const { validateEnv } = require('./config/validateEnv');
+validateEnv();
+
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -35,7 +38,13 @@ app.use(cors({
 }));
 
 // ── Body / cookie parsing ─────────────────────────────────────────────────────
-app.use(express.json({ limit: '10kb' }));
+// Webhook routes need the untouched raw body for signature verification and
+// attach their own express.raw() parser below — skip JSON parsing for them, or
+// it consumes the stream first and express.raw() becomes a no-op.
+app.use((req, res, next) => {
+  if (req.path === '/api/webhooks' || req.path.startsWith('/api/webhooks/')) return next();
+  return express.json({ limit: '10kb' })(req, res, next);
+});
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
 
