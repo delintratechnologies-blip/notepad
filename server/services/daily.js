@@ -1,6 +1,9 @@
+const { requireFeatureEnv } = require('../config/validateEnv');
+
 const DAILY_API = 'https://api.daily.co/v1';
 
 async function dailyFetch(path, method = 'GET', body) {
+  requireFeatureEnv('daily'); // 503 with a clear message if DAILY_API_KEY is unset
   const res = await fetch(`${DAILY_API}${path}`, {
     method,
     headers: {

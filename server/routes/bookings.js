@@ -41,7 +41,7 @@ router.get('/', verifyToken, async (req, res) => {
       pagination: { total, page, limit, pages: Math.ceil(total / limit) },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -60,7 +60,7 @@ router.get('/:id', verifyToken, async (req, res) => {
 
     res.json({ booking });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -171,7 +171,7 @@ router.post('/', verifyToken, validate(BookingSchema), async (req, res) => {
     if (err.code === 11000 || err.code === 112) {
       return res.status(409).json({ error: 'Slot already booked' });
     }
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   } finally {
     session.endSession();
   }
@@ -229,7 +229,7 @@ router.patch('/:id/confirm', verifyToken, async (req, res) => {
 
     res.json({ booking });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -288,7 +288,7 @@ router.patch('/:id/cancel', verifyToken, async (req, res) => {
 
     res.json({ booking });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -322,7 +322,7 @@ router.post('/:id/review', verifyToken, validate(ReviewSchema), async (req, res)
 
     res.json({ booking });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -365,7 +365,7 @@ router.patch('/:id/complete', verifyToken, async (req, res) => {
 
     res.json({ booking });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

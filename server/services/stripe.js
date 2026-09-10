@@ -1,10 +1,21 @@
 const Stripe = require('stripe');
 const User   = require('../models/User');
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-04-10' });
+const { requireFeatureEnv } = require('../config/validateEnv');
 
 // Platform commission in basis points (default 15%). Configure via env.
 const PLATFORM_FEE_BPS = parseInt(process.env.PLATFORM_FEE_BPS, 10) || 1500;
+
+// Lazily constructed so importing this module never fails when Stripe is not
+// configured. Every exported function goes through getStripe(), which 503s with
+// a clear message if STRIPE_SECRET_KEY is absent.
+let stripeClient = null;
+function getStripe() {
+  requireFeatureEnv('stripe');
+  if (!stripeClient) {
+    stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-04-10' });
+  }
+  return stripeClient;
+}
 
 /**
  * Create a PaymentIntent in manual capture mode (escrow hold).
@@ -13,6 +24,7 @@ const PLATFORM_FEE_BPS = parseInt(process.env.PLATFORM_FEE_BPS, 10) || 1500;
  * to a connected host account (BLK-2).
  */
 async function createEscrowIntent({ amountCents, currency = 'usd', hostStripeId, bookingId }) {
+  const stripe = getStripe();
   const applicationFee = Math.round((amountCents * PLATFORM_FEE_BPS) / 10000);
 
   const intent = await stripe.paymentIntents.create({
@@ -34,7 +46,7 @@ async function createEscrowIntent({ amountCents, currency = 'usd', hostStripeId,
  */
 async function releaseEscrow(paymentIntentId, hostStripeId) {
   if (!paymentIntentId) return;
-  const intent = await stripe.paymentIntents.capture(paymentIntentId);
+  const intent = await getStripe().paymentIntents.capture(paymentIntentId);
   return intent;
 }
 
@@ -42,13 +54,14 @@ async function releaseEscrow(paymentIntentId, hostStripeId) {
  * Refund a held payment (e.g. host cancels).
  */
 async function refundPayment(paymentIntentId) {
-  await stripe.paymentIntents.cancel(paymentIntentId);
+  await getStripe().paymentIntents.cancel(paymentIntentId);
 }
 
 /**
  * Create Stripe Connect onboarding link for hosts.
  */
 async function createConnectOnboarding(userId, returnUrl, refreshUrl) {
+  const stripe = getStripe();
   const user = await User.findById(userId).select('+stripeAccountId');
 
   let accountId = user?.stripeAccountId;

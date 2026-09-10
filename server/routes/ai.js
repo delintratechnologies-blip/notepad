@@ -25,13 +25,23 @@ const router      = require('express').Router();
 const Anthropic   = require('@anthropic-ai/sdk');
 const verifyToken = require('../middleware/verifyToken');
 const { authLimiter } = require('../middleware/rateLimit');
+const { requireFeatureEnv } = require('../config/validateEnv');
 const stitcher    = require('../stitcher');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Lazy — session/memory endpoints below work with no Anthropic key; only the
+// generation endpoints need it, and they get a clear 503 when it's absent.
+let anthropicClient = null;
+function getClient() {
+  requireFeatureEnv('anthropic');
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return anthropicClient;
+}
 
-// ── Helper: call Claude safely (returns null on API error) ────────────────────
+// ── Helper: call Claude ──────────────────────────────────────────────────────
 async function callClaude(prompt, maxTokens = 1024) {
-  const message = await client.messages.create({
+  const message = await getClient().messages.create({
     model:      'claude-haiku-4-5-20251001',
     max_tokens: maxTokens,
     messages:   [{ role: 'user', content: prompt }],
@@ -67,7 +77,7 @@ router.post('/suggest', verifyToken, authLimiter, async (req, res) => {
     const parsed = JSON.parse(text);
     res.json(parsed);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -83,7 +93,7 @@ router.post('/bio-polish', verifyToken, async (req, res) => {
     );
     res.json({ bio: text.trim() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -117,7 +127,7 @@ router.post('/match', verifyToken, authLimiter, async (req, res) => {
     const parsed = JSON.parse(text);
     res.json({ success: true, data: parsed });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -167,7 +177,7 @@ router.post('/show-prep', verifyToken, authLimiter, async (req, res) => {
 
     res.json({ success: true, data: parsed, sessionId: session?._id || null });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -195,7 +205,7 @@ router.get('/sessions', verifyToken, async (req, res) => {
     const sessions = await stitcher.ai.listSessions(req.user.id);
     res.json({ success: true, sessions });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -211,7 +221,7 @@ router.get('/sessions/:id', verifyToken, async (req, res) => {
 
     res.json({ success: true, session });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -252,7 +262,7 @@ router.delete('/sessions/:id', verifyToken, async (req, res) => {
     const session = await stitcher.ai.closeSession(req.params.id);
     res.json({ success: true, session });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -265,7 +275,7 @@ router.get('/memory', verifyToken, async (req, res) => {
     const memories = await stitcher.ai.getMemories(req.user.id, type || null);
     res.json({ success: true, memories });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -297,7 +307,7 @@ router.delete('/memory/:key', verifyToken, async (req, res) => {
     if (!result.deleted) return res.status(404).json({ error: 'Memory not found' });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -307,7 +317,7 @@ router.get('/context', verifyToken, async (req, res) => {
     const context = await stitcher.ai.buildContext(req.user.id);
     res.json({ success: true, context, hasContext: context.length > 0 });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

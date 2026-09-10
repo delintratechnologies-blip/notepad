@@ -27,7 +27,7 @@ router.post('/intent', verifyToken, async (req, res) => {
 
     res.json({ clientSecret });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -41,7 +41,7 @@ router.post('/connect', verifyToken, async (req, res) => {
     );
     res.json({ url: accountLink });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

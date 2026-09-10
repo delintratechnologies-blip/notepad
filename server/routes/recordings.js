@@ -1,6 +1,7 @@
 const router      = require('express').Router();
 const Booking     = require('../models/Booking');
 const verifyToken = require('../middleware/verifyToken');
+const { requireFeatureEnv } = require('../config/validateEnv');
 
 const DAILY_API = 'https://api.daily.co/v1';
 const headers   = { Authorization: `Bearer ${process.env.DAILY_API_KEY}`, 'Content-Type': 'application/json' };
@@ -24,6 +25,9 @@ router.post('/room', verifyToken, async (req, res) => {
       return res.status(400).json({ error: 'Booking must be confirmed first' });
     }
 
+    // Only now — when a room is actually being created — require Daily config.
+    requireFeatureEnv('daily');
+
     const resp = await fetch(`${DAILY_API}/rooms`, {
       method:  'POST',
       headers,
@@ -42,7 +46,7 @@ router.post('/room', verifyToken, async (req, res) => {
 
     res.json({ url: room.url });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -58,7 +62,7 @@ router.get('/:bookingId', verifyToken, async (req, res) => {
 
     res.json({ recordingUrl: booking.recordingUrl, ready: booking.recordingReady });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
